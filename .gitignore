@@ -8,8 +8,8 @@ dist/
 .venv/
 
 # run artifacts and generated data
-runs/
-data/
+/runs/
+/data/
 *.npz
 *.pt
 *.ckpt
