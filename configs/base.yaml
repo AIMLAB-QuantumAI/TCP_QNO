@@ -1,0 +1,60 @@
+# Default grid, nominal link, RED thresholds and training objective. Every
+# value here is also the dataclass default; the file exists so a run records
+# a fully resolved configuration.
+grid:
+  n_w: 16
+  n_q: 16
+  n_phase: 2
+  w_min: 1.0
+  w_max: 64.0
+  buffer_pkts: 90.0
+  q_crit_frac: 0.8
+  beta: 0.5
+  q_cluster_strength: 3.0
+  fast_retransmit_w: 4.0
+net:
+  capacity_pps: 2000.0
+  rtt_prop_s: 0.030
+aqm:
+  max_th_frac: 0.5
+  w_q: 0.0001
+sim:
+  dt_s: 0.010
+  device: auto
+model:
+  d_env: 4
+  n_layers: 8
+  d_cond: 8
+  intensity_hidden: 64
+  reset_max_probability: 1.0
+  qubit_init_scale: 0.01
+  qubit_controls: -1
+data:
+  horizons_train: [1, 2, 3, 4, 5]
+  # Columns with fewer than c_min observed transitions are dropped from the
+  # loss, and the weight of the hottest columns is capped at this quantile.
+  c_min: 32
+  c_cap_quantile: 0.9
+train:
+  lr: 0.001
+  n_steps: 20000
+  batch_configs: 16
+  h0: 5
+  lambda_obs: 1.0
+  alpha_tail: 10.0
+  lambda_wasserstein: 0.0
+  wasserstein_queue_weight: 1.0
+  wasserstein_window_weight: 1.0
+  lambda_multitail: 0.0
+  tail_threshold_fracs: [0.6, 0.7, 0.8, 0.9]
+  lambda_reg: 1.0e-6
+  fidelity_eps: 1.0e-12
+  dist_weight_occupancy: 1.0
+  dist_weight_uniform: 0.0
+  dist_weight_tail: 0.0
+  horizon_weight_power: 0.0
+  # Activation memory scales as batch x n_layers x d_env; a run past the card
+  # spills to shared memory and slows about 300x instead of failing, so the
+  # guard refuses to start above this fraction of VRAM.
+  vram_frac: 0.8
+  seeds: [0, 1, 2]
