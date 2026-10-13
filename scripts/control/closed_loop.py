@@ -229,6 +229,37 @@ def prediction_error(actions, array, args):
             "tail_probability_error": float(np.mean(errors_tail))}
 
 
+def make_controllers(args, cfg, grid, device) -> dict[str, object]:
+    """Every controller in the loop, all given the same objective settings."""
+    controllers: dict[str, object] = {
+        "fixed": FixedController((args.init_p_max, args.init_min_th)),
+    }
+    specs = parse_model_specs(args.models) if args.models else {}
+    for name, run_dir in specs.items():
+        cks = [p for p in sorted(Path(run_dir).glob("checkpoints/*.pt"))
+               if re.search(rf"seed{args.seed_index}$", p.stem)]
+        if not cks:
+            cks = sorted(Path(run_dir).glob("checkpoints/*.pt"))[:1]
+        model, model_grid, model_cfg, _ = load_checkpoint(cks[0], device)
+        model.eval()
+        controllers[name] = Controller(model, model_grid, model_cfg,
+                                       args.horizon, args.q_target, args.lam,
+                                       device)
+    if args.with_domain:
+        for label, (mode, anchor) in {
+                "fluid": ("fluid", "balanced"),
+                "diffusion": ("diffusion", "balanced")}.items():
+            controllers[label] = DomainController(
+                mode, anchor, grid, cfg, args.horizon, args.q_target,
+                args.lam, device)
+    for controller in controllers.values():
+        if isinstance(controller, Controller):
+            controller.risk = args.risk
+            controller.q95_limit = args.q95_limit
+            controller.lam_move = args.lam_move
+    return controllers
+
+
 def run_episode(runner: Ns3Runner, controller, condition, args, grid, label):
     """One ns-3 run with this controller in the loop."""
     flags = (
@@ -388,29 +419,7 @@ def main() -> None:
     # transfer per control instant.
     host_grid = Grid(cfg.grid, cfg.net, device="cpu")
 
-    controllers: dict[str, object] = {
-        "fixed": FixedController((args.init_p_max, args.init_min_th)),
-    }
-    for name, run_dir in parse_model_specs(args.models).items():
-        cks = [p for p in sorted(Path(run_dir).glob("checkpoints/*.pt"))
-               if re.search(rf"seed{args.seed_index}$", p.stem)]
-        if not cks:
-            cks = sorted(Path(run_dir).glob("checkpoints/*.pt"))[:1]
-        model, model_grid, model_cfg, _ = load_checkpoint(cks[0], device)
-        model.eval()
-        controllers[name] = Controller(model, model_grid, model_cfg,
-                                       args.horizon, args.q_target, args.lam,
-                                       device)
-        controllers[name].risk = args.risk
-        controllers[name].q95_limit = args.q95_limit
-        controllers[name].lam_move = args.lam_move
-    if args.with_domain:
-        for label, (mode, anchor) in {
-                "fluid": ("fluid", "balanced"),
-                "diffusion": ("diffusion", "balanced")}.items():
-            controllers[label] = DomainController(
-                mode, anchor, grid, cfg, args.horizon, args.q_target,
-                args.lam, device)
+    controllers = make_controllers(args, cfg, grid, device)
 
     seeds = [int(s) for s in args.seeds.split(",") if s.strip()]
     # Every knob that changes what a comparison means is recorded, not just the

@@ -34,7 +34,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Python 3.11 or newer. The reported runs used Python 3.12, PyTorch 2.11.0 with
+Python 3.12 or newer. The reported runs used Python 3.12, PyTorch 2.11.0 with
 CUDA 12.8 and a 16 GB GPU; training QTRO at the paper's recipe takes about
 13 minutes per seed there. Everything runs on CPU with `--device cpu`, slower.
 

@@ -15,6 +15,8 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import os
+import re
+import shlex
 import subprocess
 from dataclasses import dataclass
 
@@ -29,10 +31,36 @@ CONDITION_FLAGS = (
     ("minTh", "min_th"), ("maxThFrac", "max_th_frac"),
     ("bufferPkts", "buffer_pkts"), ("qw", "w_q"),
 )
+# Condition values and flag names end up inside a shell command line, run as
+# root inside WSL, so only numbers and plain names are accepted.
+_FLAG_NAME = re.compile(r"[A-Za-z][A-Za-z0-9]*$")
+_PROGRAM_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*$")
+
+
+def _number(name: str, value) -> int | float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"ns-3 flag {name!r} must be a number, got {value!r}")
+    return value
+
+
+def _program(program: str) -> str:
+    if not _PROGRAM_NAME.match(program):
+        raise ValueError(f"ns-3 program name {program!r} is not a plain name")
+    return program
 
 
 def condition_flags(condition: dict) -> str:
-    return " ".join(f"--{flag}={condition[key]}" for flag, key in CONDITION_FLAGS)
+    return " ".join(f"--{flag}={_number(key, condition[key])}" for flag, key in CONDITION_FLAGS)
+
+
+def extra_flags(extra: dict) -> str:
+    """Scenario-specific flags from a condition's ``extra`` mapping, in its order."""
+    out = ""
+    for key, value in extra.items():
+        if not isinstance(key, str) or not _FLAG_NAME.match(key):
+            raise ValueError(f"ns-3 flag name {key!r} must be letters and digits")
+        out += f" --{key}={_number(key, value)}"
+    return out
 
 
 def add_ns3_arguments(parser: argparse.ArgumentParser) -> None:
@@ -66,12 +94,14 @@ class Ns3Runner:
 
     def wrapper_command(self, program: str, flags: str) -> str:
         """Through the build wrapper, as the open-loop datasets are generated."""
-        return f"cd {self.ns3_dir} && ./ns3 run '{program} {flags}' --no-build"
+        return (f"cd {shlex.quote(self.ns3_dir)} && ./ns3 run "
+                f"'{_program(program)} {flags}' --no-build")
 
     def binary_command(self, program: str, flags: str, close_stdin: bool = False) -> str:
         """The optimised binary directly, as the closed loop needs."""
-        binary = f"{self.ns3_dir}/build/scratch/ns{self.version}-{program}-optimized"
-        command = f"LD_LIBRARY_PATH={self.ns3_dir}/build/lib {binary} {flags}"
+        binary = f"{self.ns3_dir}/build/scratch/ns{self.version}-{_program(program)}-optimized"
+        command = (f"LD_LIBRARY_PATH={shlex.quote(self.ns3_dir + '/build/lib')} "
+                   f"{shlex.quote(binary)} {flags}")
         return command + " < /dev/null" if close_stdin else command
 
     def _argv(self, inner: str, quote: str) -> list[str]:
@@ -79,7 +109,7 @@ class Ns3Runner:
             return ["bash", "-lc", inner]
         if self.user:
             # ns-3 writes its own progress to stderr; the data is on stdout.
-            inner = f"su {self.user} -c {quote}{inner}{quote} 2>/dev/null"
+            inner = f"su {shlex.quote(self.user)} -c {quote}{inner}{quote} 2>/dev/null"
         return ["wsl", "-d", self.distro, "--user", "root", "--", "bash", "-lc", inner]
 
     def wrapper_argv(self, program: str, flags: str) -> list[str]:
@@ -94,6 +124,9 @@ class Ns3Runner:
             result = subprocess.run(argv, capture_output=True, text=True, timeout=timeout_s)
         except subprocess.TimeoutExpired:
             return None
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                f"cannot start {argv[0]!r} ({exc}); check NS3_MODE") from exc
         return result.stdout
 
     def popen(self, argv: list[str]) -> subprocess.Popen:

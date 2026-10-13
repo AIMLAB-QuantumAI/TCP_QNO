@@ -23,7 +23,14 @@ import numpy as np
 
 from qtro.config import load_config
 from qtro.grid import Grid
-from qtro.ns3 import Ns3Runner, add_ns3_arguments, condition_flags, csv_rows, digitise
+from qtro.ns3 import (
+    Ns3Runner,
+    add_ns3_arguments,
+    condition_flags,
+    csv_rows,
+    digitise,
+    extra_flags,
+)
 
 
 def condition_replications(condition: dict, default: int) -> int:
@@ -39,9 +46,7 @@ def run_one(runner: Ns3Runner, condition: dict, run_seed: int, samples: int,
     datasets have none.
     """
     flags = (f"{condition_flags(condition)} --samples={samples} --warmup={warmup} "
-             f"--runSeed={run_seed}")
-    for key, value in condition.get("extra", {}).items():
-        flags += f" --{key}={value}"
+             f"--runSeed={run_seed}" + extra_flags(condition.get("extra", {})))
     stdout = runner.run(runner.wrapper_argv(scenario, flags), timeout_s)
     if stdout is None:
         return None
@@ -197,9 +202,12 @@ def main() -> None:
                           "median_count_h1": int(np.median(
                               payload["count_ref_h1"]))}), flush=True)
 
-    manifest["status"] = "complete"
+    manifest["status"] = "complete" if manifest["shards"] else "failed"
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2),
                                        encoding="utf-8")
+    if not manifest["shards"]:
+        raise SystemExit("no ns-3 run returned data: check NS3_DIR, NS3_MODE and "
+                         "NS3_USER, and that the qtro programs are built (ns3/README.md)")
     print(json.dumps({"event": "complete", "shards": len(manifest["shards"])}))
 
 

@@ -3,10 +3,11 @@
 #
 # Every arm already has seed 0 from run_control_count.sh / run_ansatz.sh; the
 # training manifest merges seeds, so the same --out is reused. The arms are
-# the control counts k = 10, 8, 4, 0 at depth 4, the hardware-efficient
-# ansatz at depth 32, the two depth pairs (k = 8 at depth 8, k = 4 at depth
-# 16) and the dense ansatz at depth 8, in the order of how much each matters
-# to the table and how long it takes.
+# the control counts k = 10, 8, 4, 0 and k = -1 (every control, QTRO's own
+# ladder) at depth 4, the hardware-efficient ansatz at depth 32, the two
+# depth pairs (k = 8 at depth 8, k = 4 at depth 16) and the dense ansatz at
+# depth 8, in the order of how much each matters to the table and how long
+# it takes.
 #
 # Usage: DATA=path/to/main_dataset [PYTHON=python] [OUT=runs] [SEEDS=1,2,3,4] \
 #        scripts/qubit/run_seeds.sh
@@ -36,6 +37,7 @@ train ucr_k10 qubit_ucr 4x8 --set model.qubit_controls=10
 train ucr_k8  qubit_ucr 4x8 --set model.qubit_controls=8
 train ucr_k4  qubit_ucr 4x8 --set model.qubit_controls=4
 train ucr_k0  qubit_ucr 4x8 --set model.qubit_controls=0
+train ucr_kall qubit_ucr 4x8 --set model.qubit_controls=-1
 train qubit_hea_L32 qubit_hea 32x8
 train ucr_k8_L8   qubit_ucr 8x8  --set model.qubit_controls=8
 train ucr_k4_L16  qubit_ucr 16x8 --set model.qubit_controls=4

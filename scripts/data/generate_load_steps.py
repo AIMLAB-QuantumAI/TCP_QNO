@@ -33,22 +33,24 @@ import torch
 
 from qtro.config import load_config
 from qtro.grid import Grid
-from qtro.ns3 import Ns3Runner, add_ns3_arguments, condition_flags, csv_rows
+from qtro.ns3 import Ns3Runner, add_ns3_arguments, condition_flags, csv_rows, extra_flags
 
 
 def run_one(runner: Ns3Runner, condition: dict, run_seed: int,
             timeout_s: int) -> np.ndarray | None:
     """Return ``(samples + 1, 5)`` of cwnd, queue, phase, n_active, drops."""
-    flags = (f"{condition_flags(condition)} "
-             f"--surgeFlows={condition.get('surge_flows', 0)} "
-             f"--surgeStartS={condition.get('surge_start_s', -1.0)} "
-             f"--surgeStopS={condition.get('surge_stop_s', -1.0)} "
-             f"--releaseFlows={condition.get('release_flows', 0)} "
-             f"--releaseStopS={condition.get('release_stop_s', -1.0)} "
-             f"--releaseRestartS={condition.get('release_restart_s', -1.0)} "
-             f"--samples={condition['samples']} "
-             f"--sampleInterval={condition['sample_interval_s']} "
-             f"--warmup={condition['warmup_s']} --runSeed={run_seed}")
+    flags = condition_flags(condition) + extra_flags({
+        "surgeFlows": condition.get("surge_flows", 0),
+        "surgeStartS": condition.get("surge_start_s", -1.0),
+        "surgeStopS": condition.get("surge_stop_s", -1.0),
+        "releaseFlows": condition.get("release_flows", 0),
+        "releaseStopS": condition.get("release_stop_s", -1.0),
+        "releaseRestartS": condition.get("release_restart_s", -1.0),
+        "samples": condition["samples"],
+        "sampleInterval": condition["sample_interval_s"],
+        "warmup": condition["warmup_s"],
+        "runSeed": run_seed,
+    })
     stdout = runner.run(runner.wrapper_argv("qtro-dumbbell", flags), timeout_s)
     if stdout is None:
         return None
@@ -248,6 +250,9 @@ def main() -> None:
             "saturated": summary["buffer_saturated"],
             "step_drops": round(summary["surge_drops_mean"], 1)}), flush=True)
 
+    if not report["conditions"]:
+        raise SystemExit("no ns-3 run returned data: check NS3_DIR, NS3_MODE and "
+                         "NS3_USER, and that the qtro programs are built (ns3/README.md)")
     print(json.dumps({"event": "complete",
                       "conditions": len(report["conditions"])}))
 

@@ -73,23 +73,26 @@ def score_checkpoint(path, panel: SweepData, device: str, horizons, metrics,
 def resolve_checkpoint(directory, record: dict) -> Path:
     """The checkpoint a training record names.
 
-    The training manifest records each checkpoint path as it was given on
-    the training command line, so a relative path resolves against the
-    current directory. When that file is absent -- the run was moved, or is
-    read from another directory -- the checkpoint is looked up by name under
-    ``<directory>/checkpoints/``, where the training script always writes it.
+    The training script always writes a run's checkpoints under
+    ``<directory>/checkpoints/``, so that file is taken first; a run read
+    from another directory, or moved, still scores its own weights even when
+    something else now lives at the path the manifest recorded. The recorded
+    path (as typed on the training command line, relative to that working
+    directory) is the fallback.
     """
-    path = Path(record["checkpoint"])
-    if path.exists():
-        return path
     name = str(record["checkpoint"]).replace("\\", "/").rsplit("/", 1)[-1]
-    fallback = Path(directory) / "checkpoints" / name
-    return fallback if fallback.exists() else path
+    own = Path(directory) / "checkpoints" / name
+    return own if own.exists() else Path(record["checkpoint"])
 
 
 def score_run_directory(directory, panel, device, horizons, metrics,
                         seeds=None) -> dict[int, Scores]:
-    """One entry per checkpoint listed in the directory's ``train_*.json``, keyed by seed."""
+    """One entry per checkpoint listed in the directory's ``train_*.json``, keyed by seed.
+
+    A directory that holds several variants (one manifest each) has the same
+    seed under more than one record; scoring it would silently keep one
+    variant, so it is refused.
+    """
     scores: dict[int, Scores] = {}
     for path in sorted(Path(directory).glob("train_*.json")):
         for record in json.loads(path.read_text(encoding="utf-8")):
@@ -97,6 +100,10 @@ def score_run_directory(directory, panel, device, horizons, metrics,
             seed = int(record["seed"])
             if not checkpoint.exists() or (seeds is not None and seed not in seeds):
                 continue
+            if seed in scores:
+                raise ValueError(
+                    f"seed {seed} appears in more than one training record under "
+                    f"{directory}; score one variant's run directory at a time")
             scores[seed] = score_checkpoint(checkpoint, panel, device, horizons, metrics)
             print(f"  scored {checkpoint.name}", flush=True)
     return scores

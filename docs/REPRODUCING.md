@@ -113,10 +113,14 @@ the main run):
 python scripts/train/condition_curve.py --config configs/ns3_h20.yaml --data data/main --out runs/h20_condition_curve --seeds 0,1,2
 ```
 
-Qubit-native arms (control count, ansätze, further seeds):
+Qubit-native arms: the control count at depth 4 (seed 0), the two depth
+pairs (k = 8 at depth 8 and k = 4 at depth 16, seed 0), the two ansätze
+(seed 0), then seeds 1-4 of every arm the control-count comparison reports:
 
 ```sh
 DATA=data/main scripts/qubit/run_control_count.sh
+LAYERS=8  DATA=data/main scripts/qubit/run_control_count.sh 8
+LAYERS=16 DATA=data/main scripts/qubit/run_control_count.sh 4
 DATA=data/main scripts/qubit/run_ansatz.sh "hea:32 dense:8" 0
 DATA=data/main scripts/qubit/run_seeds.sh
 ```
@@ -148,6 +152,7 @@ python scripts/evaluate/accuracy.py --panel data/shift_burst  --split ns3_burst 
 python scripts/evaluate/accuracy.py --panel data/shift_tandem --split ns3_tandem H20 --out results/accuracy_tandem.json
 python scripts/evaluate/envelope.py --panel data/validation --split ns3_validation H20 --out results/envelope.json
 python scripts/evaluate/tail_observables.py --panel data/validation --split ns3_validation --aggregation uniform H20 --out results/tail_observables_validation.json
+python scripts/evaluate/tail_observables.py --panel data/tail --split ns3_tail_eval --aggregation uniform H20 --out results/tail_observables_tail.json
 python scripts/evaluate/tail_observables.py --panel data/shift_burst --split ns3_burst H20 --out results/tail_observables_burst.json
 python scripts/data/dataset_statistics.py --panel data/main --split ns3_heldout --out results/dataset_statistics.json
 python scripts/evaluate/markov_gap.py --panel data/main --split ns3_heldout --out results/markov_gap.json
@@ -220,18 +225,23 @@ python scripts/control/closed_loop.py H20 --flows 4 --surge-flows 4 --surge-star
     --init-p-max 0.1 --init-min-th 20 --out results/closed_loop_surge.json
 ```
 
-Paired intervals and drops over the episodes:
+Paired intervals over the episodes (the cycling load against every
+baseline, the surge against the learned baselines, the best constant on its
+own) and the drop counts:
 
 ```sh
 python scripts/control/closed_loop_bootstrap.py --report results/closed_loop_cycling.json --out results/closed_loop_bootstrap.json
+python scripts/control/closed_loop_bootstrap.py --report results/closed_loop_surge.json --baselines cnto,seqpred,deeponet --out results/closed_loop_bootstrap_surge.json
+python scripts/control/closed_loop_bootstrap.py --report results/closed_loop_fixed16.json --baselines fixed --out results/closed_loop_bootstrap_fixed16.json
 python scripts/control/closed_loop_drops.py --report results/closed_loop_cycling.json --out results/closed_loop_drops.json
 ```
 
-Load steps and their phases:
+Load steps and their phases, on both per-sample metrics:
 
 ```sh
 python scripts/evaluate/load_steps.py --transient runs/load_steps H20 --out results/load_steps.json
-python scripts/evaluate/load_step_phases.py --comparison results/load_steps.json --metric mean_queue_error --out results/load_step_phases.json
+python scripts/evaluate/load_step_phases.py --comparison results/load_steps.json --metric mean_queue_error --out results/load_step_phases_meanq.json
+python scripts/evaluate/load_step_phases.py --comparison results/load_steps.json --metric tv --out results/load_step_phases_tv.json
 ```
 
 The state probes, at the three RED settings and both step sizes:

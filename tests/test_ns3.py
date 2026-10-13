@@ -5,7 +5,14 @@ import pytest
 
 from qtro.config import load_config
 from qtro.grid import Grid
-from qtro.ns3 import Ns3Runner, add_ns3_arguments, condition_flags, csv_rows, digitise
+from qtro.ns3 import (
+    Ns3Runner,
+    add_ns3_arguments,
+    condition_flags,
+    csv_rows,
+    digitise,
+    extra_flags,
+)
 
 NS3 = "/opt/ns-allinone-3.42/ns-3.42"
 COND = {"capacity_pps": 2000.0, "rtt_prop_s": 0.03, "n_flows": 4, "p_err": 0.0,
@@ -17,6 +24,34 @@ def test_condition_flags_follow_the_documented_order():
     assert condition_flags(COND) == (
         "--capacityPps=2000.0 --rttPropS=0.03 --nFlows=4 --pErr=0.0 --pMax=0.1 "
         "--minTh=20.0 --maxThFrac=0.5 --bufferPkts=90.0 --qw=0.0001")
+
+
+def test_condition_values_must_be_numbers():
+    # Condition values are interpolated into a shell command, as root in WSL.
+    with pytest.raises(ValueError, match="capacity_pps"):
+        condition_flags({**COND, "capacity_pps": '2000"; rm -rf /; echo "'})
+    with pytest.raises(ValueError, match="n_flows"):
+        condition_flags({**COND, "n_flows": True})
+
+
+def test_extra_flags_accept_only_plain_names_and_numbers():
+    assert extra_flags({"burstFlows": 2, "burstShape": 1.5}) == " --burstFlows=2 --burstShape=1.5"
+    assert extra_flags({}) == ""
+    with pytest.raises(ValueError, match="burst flows"):
+        extra_flags({"burst flows": 2})
+    with pytest.raises(ValueError, match="burstFlows"):
+        extra_flags({"burstFlows": "2 && echo"})
+
+
+def test_paths_are_quoted_and_program_names_checked():
+    runner = Ns3Runner("/opt/ns 3", mode="wsl", user="ns3")
+    assert runner.wrapper_command("qtro-dumbbell", "--x=1") == (
+        "cd '/opt/ns 3' && ./ns3 run 'qtro-dumbbell --x=1' --no-build")
+    assert runner.binary_command("qtro-closedloop", "--x=1") == (
+        "LD_LIBRARY_PATH='/opt/ns 3/build/lib' '/opt/ns 3/build/scratch/"
+        "ns3.42-qtro-closedloop-optimized' --x=1")
+    with pytest.raises(ValueError, match="program"):
+        runner.wrapper_command("qtro-dumbbell; rm -rf /", "--x=1")
 
 
 def test_wsl_wrapper_argv_runs_as_the_build_owner():

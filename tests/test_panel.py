@@ -11,6 +11,7 @@ from qtro.config import load_config
 from qtro.data import SweepData
 from qtro.eval.panel import (
     parse_model_specs,
+    resolve_checkpoint,
     score_checkpoint_directory,
     score_kernels,
     score_run_directory,
@@ -85,6 +86,36 @@ def test_manifest_checkpoint_paths_resolve_against_the_run_directory(tmp_path, m
     monkeypatch.chdir(tmp_path)
     scores = score_run_directory(run, panel, "cpu", (1,), ("fidelity",))
     assert set(scores) == {1}
+
+
+def test_run_directory_prefers_its_own_checkpoint_over_a_same_named_cwd_path(tmp_path, monkeypatch):
+    cfg, grid, _ = _panel(tmp_path)
+    run = tmp_path / "archive" / "run"
+    own = save_checkpoint(run / "checkpoints" / "cnto_rank2_seed1.pt",
+                          CNTO(grid, N_COND_FEATURES, rank=2), cfg,
+                          model_name="cnto", model_kwargs={"rank": 2}, metadata={"seed": 1})
+    record = {"checkpoint": "runs/x/checkpoints/cnto_rank2_seed1.pt", "seed": 1}
+    # A different run now lives at the path the archived manifest recorded.
+    save_checkpoint(tmp_path / "runs" / "x" / "checkpoints" / "cnto_rank2_seed1.pt",
+                    CNTO(grid, N_COND_FEATURES, rank=2), cfg,
+                    model_name="cnto", model_kwargs={"rank": 2}, metadata={"seed": 1})
+    monkeypatch.chdir(tmp_path)
+    assert resolve_checkpoint(run, record) == own
+
+
+def test_a_seed_recorded_twice_in_one_run_directory_is_an_error(tmp_path):
+    cfg, grid, panel = _panel(tmp_path)
+    run = tmp_path / "run"
+    for variant in ("rank2", "rank3"):
+        rank = int(variant[-1])
+        checkpoint = save_checkpoint(run / "checkpoints" / f"cnto_{variant}_seed3.pt",
+                                     CNTO(grid, N_COND_FEATURES, rank=rank), cfg,
+                                     model_name="cnto", model_kwargs={"rank": rank},
+                                     metadata={"seed": 3})
+        (run / f"train_cnto_{variant}.json").write_text(
+            json.dumps([{"checkpoint": str(checkpoint), "seed": 3}]), encoding="utf-8")
+    with pytest.raises(ValueError, match="seed 3"):
+        score_run_directory(run, panel, "cpu", (1,), ("fidelity",))
 
 
 def test_model_specs_keep_their_order_and_reject_empty_entries():
