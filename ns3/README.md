@@ -34,6 +34,10 @@ export NS3_DIR=/opt/ns-allinone-3.42/ns-3.42   # native
 export NS3_MODE=wsl NS3_USER=ns3               # or from Windows through WSL
 ```
 
+From Git Bash on Windows, set `MSYS_NO_PATHCONV=1` as well, or pass
+`--ns3-dir` explicitly: MSYS otherwise rewrites `/opt/...` into a path under
+the Git installation before Python sees it.
+
 The open-loop scenarios run through the `./ns3 run` wrapper. The closed loop
 calls the optimised binary directly, because the wrapper does not forward
 stdin and the control channel needs it; the state probes use the same binary
