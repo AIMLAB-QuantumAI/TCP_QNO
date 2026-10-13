@@ -254,3 +254,7 @@ done; done
   finish, so a regenerated dataset is statistically equivalent to the original
   but not bit-identical.
 - The seed-0 checkpoints are the ones the closed loop and the cost script use.
+- Training is bit-reproducible only under the same PyTorch build. The
+  reported runs used 2.11.0; from 2.14 PyTorch masks the gradient of `clamp`
+  at its boundary, which changes the training gradient wherever a predicted
+  column entry is exactly zero. Evaluation is unaffected.

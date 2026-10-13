@@ -57,19 +57,25 @@ def test_fidelity_default_is_exact_on_sparse_high_dimensional_distributions():
 
 
 def test_fidelity_backward_is_finite_with_a_positive_eps_at_a_single_sided_zero():
-    """Training must pass a positive eps: at eps=0 the gradient is infinite
-    wherever exactly one of p, q is zero, which split-half histograms contain."""
+    """Training must pass a positive eps: at eps=0 the gradient grows without
+    bound as one of p, q approaches zero while the other does not, which
+    split-half histograms contain. The probe sits just above zero because at
+    exactly zero the value depends on how torch differentiates the clamp
+    boundary (infinite up to torch 2.11, masked to zero from 2.14)."""
     p, q = _split_half_histograms()
     mismatch = (p == 0) & (q > 0)
     assert mismatch.any(), "fixture must contain a single-sided-zero cell"
 
-    p0 = p.clone().requires_grad_(True)
+    near_zero = p.clone()
+    near_zero[mismatch] = 1e-30
+    p0 = near_zero.requires_grad_(True)
     fidelity(p0, q, eps=0.0).backward()
-    assert torch.isinf(p0.grad[mismatch]).all()
+    assert (p0.grad[mismatch].abs() > 1e6).all()
 
     p1 = p.clone().requires_grad_(True)
     fidelity(p1, q, eps=1e-12).backward()
     assert torch.isfinite(p1.grad).all()
+    assert (p1.grad[mismatch].abs() < 1e7).all()
 
 
 def test_sweep_data_round_trips_a_shard(tmp_path):
