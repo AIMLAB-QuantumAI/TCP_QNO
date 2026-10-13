@@ -7,14 +7,14 @@ permissions:
   contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
       matrix:
         python: ["3.12"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
       - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
