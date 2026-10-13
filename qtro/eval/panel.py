@@ -70,18 +70,30 @@ def score_checkpoint(path, panel: SweepData, device: str, horizons, metrics,
     return scores
 
 
+def resolve_checkpoint(directory, record: dict) -> Path:
+    """The checkpoint a training record names.
+
+    The training manifest records each checkpoint path as it was given on
+    the training command line, so a relative path resolves against the
+    current directory. When that file is absent -- the run was moved, or is
+    read from another directory -- the checkpoint is looked up by name under
+    ``<directory>/checkpoints/``, where the training script always writes it.
+    """
+    path = Path(record["checkpoint"])
+    if path.exists():
+        return path
+    name = str(record["checkpoint"]).replace("\\", "/").rsplit("/", 1)[-1]
+    fallback = Path(directory) / "checkpoints" / name
+    return fallback if fallback.exists() else path
+
+
 def score_run_directory(directory, panel, device, horizons, metrics,
                         seeds=None) -> dict[int, Scores]:
-    """One entry per checkpoint listed in the directory's ``train_*.json``, keyed by seed.
-
-    The training manifest records each checkpoint path as it was given on the
-    training command line, so a relative path resolves against the current
-    directory.
-    """
+    """One entry per checkpoint listed in the directory's ``train_*.json``, keyed by seed."""
     scores: dict[int, Scores] = {}
     for path in sorted(Path(directory).glob("train_*.json")):
         for record in json.loads(path.read_text(encoding="utf-8")):
-            checkpoint = Path(record["checkpoint"])
+            checkpoint = resolve_checkpoint(directory, record)
             seed = int(record["seed"])
             if not checkpoint.exists() or (seeds is not None and seed not in seeds):
                 continue

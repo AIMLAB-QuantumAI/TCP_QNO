@@ -19,6 +19,7 @@ import torch
 from qtro.checkpoint import load_checkpoint
 from qtro.data import SweepData
 from qtro.device import resolve_device
+from qtro.eval.panel import resolve_checkpoint
 
 
 def weighted_quantile(values: np.ndarray, weights: np.ndarray, q: float) -> float:
@@ -44,7 +45,7 @@ def main() -> None:
     rows = []
     for manifest in sorted(Path(args.run).glob("train_*.json")):
         for record in json.loads(manifest.read_text(encoding="utf-8")):
-            model, grid, cfg, _ = load_checkpoint(record["checkpoint"], device)
+            model, grid, cfg, _ = load_checkpoint(resolve_checkpoint(args.run, record), device)
             model = model.double()
             with torch.no_grad():
                 for n in range(len(panel)):

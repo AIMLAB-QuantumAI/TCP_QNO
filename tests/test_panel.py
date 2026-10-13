@@ -70,6 +70,23 @@ def test_checkpoints_are_scored_by_seed_from_either_convention(tmp_path):
     assert score_checkpoint_directory(run, panel, "cpu", (1,), ("fidelity",), seeds={0}) == {}
 
 
+def test_manifest_checkpoint_paths_resolve_against_the_run_directory(tmp_path, monkeypatch):
+    cfg, grid, panel = _panel(tmp_path)
+    model = CNTO(grid, N_COND_FEATURES, rank=2)
+    run = tmp_path / "elsewhere" / "run"
+    save_checkpoint(run / "checkpoints" / "cnto_rank2_seed1.pt", model, cfg,
+                    model_name="cnto", model_kwargs={"rank": 2}, metadata={"seed": 1})
+    # The manifest records the path as it was given on the training command
+    # line, relative to wherever training was launched from; a Windows run
+    # records it with backslashes.
+    (run / "train_cnto_rank2.json").write_text(
+        json.dumps([{"checkpoint": "runs\\x\\checkpoints\\cnto_rank2_seed1.pt", "seed": 1}]),
+        encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    scores = score_run_directory(run, panel, "cpu", (1,), ("fidelity",))
+    assert set(scores) == {1}
+
+
 def test_model_specs_keep_their_order_and_reject_empty_entries():
     assert list(parse_model_specs("a=x,b=y").items()) == [("a", "x"), ("b", "y")]
     with pytest.raises(ValueError, match="name=path"):
