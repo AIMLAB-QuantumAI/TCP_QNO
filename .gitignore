@@ -10,6 +10,7 @@ dist/
 # run artifacts and generated data
 /runs/
 /data/
+/results/
 *.npz
 *.pt
 *.ckpt
