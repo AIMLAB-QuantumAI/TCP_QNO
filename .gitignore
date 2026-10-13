@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+.venv/
+
+# run artifacts and generated data
+runs/
+data/
+*.npz
+*.pt
+*.ckpt
