@@ -18,7 +18,6 @@ carries a split name the training script will not load.
 from __future__ import annotations
 
 import argparse
-import itertools
 import json
 from pathlib import Path
 
