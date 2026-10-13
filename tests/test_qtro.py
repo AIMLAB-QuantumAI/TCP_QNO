@@ -51,15 +51,21 @@ def test_state_dict_has_only_transport_reset_and_scale_keys():
 
 
 def test_validity_holds_over_a_hundred_step_rollout():
-    """Validity is structural, so it survives any horizon."""
+    """Validity is structural, so it survives any horizon.
+
+    Under ``no_grad``: with autograd on, each step keeps its own propagator
+    graph alive, and a hundred of them need about 25 GiB, which a CI runner
+    does not have.
+    """
     grid, model = _setup()
     u, xi = _inputs(2)
     p = torch.rand(2, grid.M)
     p = p / p.sum(-1, keepdim=True)
-    for _ in range(100):
-        p = model.step(p, u, xi)
-        assert float(p.detach().min()) >= -1e-6
-        assert abs(float(p.detach().sum(-1).max()) - 1.0) < 1e-5
+    with torch.no_grad():
+        for _ in range(100):
+            p = model.step(p, u, xi)
+            assert float(p.min()) >= -1e-6
+            assert abs(float(p.sum(-1).max()) - 1.0) < 1e-5
 
 
 def test_validity_holds_for_arbitrary_parameter_values():
@@ -70,10 +76,11 @@ def test_validity_holds_for_arbitrary_parameter_values():
     u, xi = _inputs(2)
     p = torch.rand(2, grid.M)
     p = p / p.sum(-1, keepdim=True)
-    for _ in range(20):
-        p = model.step(p, u, xi)
-    assert float(p.detach().min()) >= -1e-6
-    assert abs(float(p.detach().sum(-1).max()) - 1.0) < 1e-5
+    with torch.no_grad():
+        for _ in range(20):
+            p = model.step(p, u, xi)
+    assert float(p.min()) >= -1e-6
+    assert abs(float(p.sum(-1).max()) - 1.0) < 1e-5
 
 
 def test_float64_agrees_with_float32():
